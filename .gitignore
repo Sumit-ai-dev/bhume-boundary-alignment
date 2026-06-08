@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.python-version
+
+# Large raster files (too big for git, download from BhuMe site)
+data/**/*.tif
+
+# OS files
+.DS_Store
+
+# Virtual environments
+.venv/
+venv/
+
+# Example patch image from quickstart
+patch_example.png
+
+# Lock files
+uv.lock
