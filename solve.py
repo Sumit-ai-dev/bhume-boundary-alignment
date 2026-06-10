@@ -218,8 +218,18 @@ def align_village(village_dir: str) -> None:
             geom_4326 = row.geometry
             props = row.to_dict()
 
-            # Check area matches holding record (disabled in early version)
-            ratio = None
+            # Check area matches holding record
+            ratio = _area_ratio(props)
+            if ratio is not None and (ratio < AREA_RATIO_MIN or ratio > AREA_RATIO_MAX):
+                results.append({
+                    "plot_number": str(plot_num),
+                    "status": "flagged",
+                    "confidence": None,
+                    "method_note": f"area mismatch ratio={ratio:.2f}",
+                    "geometry": geom_4326,
+                })
+                continue
+
             # FFT cross-correlation alignment
             try:
                 dx_m, dy_m, conf = _cross_correlate_shift(
