@@ -275,13 +275,50 @@ def align_village(village_dir: str) -> None:
             if conf >= 0.5:
                 high_conf_shifts.append((dx_m, dy_m, conf))
 
+    # Global consensus shift for dense villages
+    if is_dense and len(high_conf_shifts) >= 10:
+        # Take top third by confidence for the consensus
+        sorted_shifts = sorted(high_conf_shifts, key=lambda x: x[2], reverse=True)
+        top = sorted_shifts[:max(10, len(sorted_shifts) // 3)]
+        gdx = float(np.median([s[0] for s in top]))
+        gdy = float(np.median([s[1] for s in top]))
+        gconf = 0.30  # conservative confidence for consensus-based correction
+
+        print(f"\n  Global consensus shift: dx={gdx:.1f}m dy={gdy:.1f}m "
+              f"(from {len(top)} high-conf plots)")
+
+        upgraded = 0
+        for r in results:
+            if r["status"] == "flagged" and "low confidence" in r.get("method_note", ""):
+                g4326 = r["geometry"]
+                g_utm = gpd.GeoSeries([g4326], crs="EPSG:4326").to_crs(utm).iloc[0]
+                g_shift = translate(g_utm, xoff=gdx, yoff=gdy)
+                g_out = gpd.GeoSeries([g_shift], crs=utm).to_crs("EPSG:4326").iloc[0]
+                r.update({
+                    "status": "corrected",
+                    "confidence": gconf,
+                    "method_note": f"global consensus dx={gdx:.1f}m dy={gdy:.1f}m",
+                    "geometry": g_out,
+                })
+                upgraded += 1
+        print(f"  Upgraded {upgraded} plots using global consensus")
+
     # Save results to predictions.geojson
     preds = gpd.GeoDataFrame(results, crs="EPSG:4326")
     preds = preds.set_index("plot_number", drop=False)
+
+    n_corr = (preds["status"] == "corrected").sum()
+    n_flag = (preds["status"] == "flagged").sum()
+    print(f"\n  Result: {n_corr} corrected · {n_flag} flagged")
+
     out_path = Path(village_dir) / "predictions.geojson"
     write_predictions(out_path, preds)
+    print(f"  Written: {out_path}")
+
     if village.example_truths is not None:
+        print()
         print(score(preds, village))
+
 
 if __name__ == "__main__":
     village_dir = sys.argv[1] if len(sys.argv) > 1 else "data/34855_vadnerbhairav_chandavad_nashik"
